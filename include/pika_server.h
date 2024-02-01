@@ -477,12 +477,17 @@ class PikaServer : public pstd::noncopyable {
   void ClearCacheDbAsyncV2(std::shared_ptr<DB> db);
   void ResetCacheConfig(std::shared_ptr<DB> db);
   void ClearHitRatio(std::shared_ptr<DB> db);
-  void OnCacheStartPosChanged(int zset_cache_start_pos, std::shared_ptr<DB> db);
+  void OnCacheStartPosChanged(int zset_cache_start_direction, std::shared_ptr<DB> db);
   void UpdateCacheInfo(void);
   void ResetDisplayCacheInfo(int status, std::shared_ptr<DB> db);
   void CacheConfigInit(cache::CacheConfig &cache_cfg);
   void ProcessCronTask();
   double HitRatio();
+
+  /*
+  * disable compact
+  */
+  void DisableCompact();
 
   /*
    * lastsave used

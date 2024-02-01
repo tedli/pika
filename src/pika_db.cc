@@ -190,6 +190,13 @@ void DB::InitKeyScan() {
   key_scan_info_.duration = -1;  // duration -1 mean the task in processing
 }
 
+void DB::SetCompactRangeOptions(const bool is_canceled) {
+  if (!opened_) {
+    return;
+  }
+  storage_->SetCompactRangeOptions(is_canceled);
+}
+
 void DB::DbRWLockWriter() { db_rwlock_.lock(); }
 
 DisplayCacheInfo DB::GetCacheInfo() {
@@ -369,7 +376,7 @@ bool DB::InitBgsaveEngine() {
 }
 
 void DB::Init() {
-  cache_ = std::make_shared<PikaCache>(g_pika_conf->zset_cache_start_pos(), g_pika_conf->zset_cache_field_num_per_key());
+  cache_ = std::make_shared<PikaCache>(g_pika_conf->zset_cache_start_direction(), g_pika_conf->zset_cache_field_num_per_key());
   // Create cache
   cache::CacheConfig cache_cfg;
   g_pika_server->CacheConfigInit(cache_cfg);

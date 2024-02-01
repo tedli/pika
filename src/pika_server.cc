@@ -211,6 +211,7 @@ void PikaServer::Start() {
 }
 
 void PikaServer::Exit() {
+  g_pika_server->DisableCompact();
   exit_mutex_.unlock();
   exit_ = true;
 }
@@ -960,7 +961,7 @@ void PikaServer::DbSyncSendFile(const std::string& ip, int port, const std::stri
 
 std::string PikaServer::DbSyncTaskIndex(const std::string& ip, int port, const std::string& db_name) {
   char buf[256];
-  snprintf(buf, sizeof(buf), "%s:%d_%s:%d", ip.data(), port, db_name.data());
+  snprintf(buf, sizeof(buf), "%s:%d_%s", ip.data(), port, db_name.data());
   return buf;
 }
 
@@ -1674,6 +1675,25 @@ void PikaServer::CheckPubsubClientKill(const std::string& userName, const std::v
   });
 }
 
+void PikaServer::DisableCompact() {
+  /* disable auto compactions */
+  std::unordered_map<std::string, std::string> options_map{{"disable_auto_compactions", "true"}};
+  storage::Status s = g_pika_server->RewriteStorageOptions(storage::OptionType::kColumnFamily, options_map);
+  if (!s.ok()) {
+    LOG(ERROR) << "-ERR Set storage::OptionType::kColumnFamily disable_auto_compactions error: " + s.ToString() + "\r\n";
+    return;
+  }
+  g_pika_conf->SetDisableAutoCompaction("true");
+
+  /* cancel in-progress manual compactions */
+  std::shared_lock rwl(dbs_rw_);
+  for (const auto& db_item : dbs_) {
+      db_item.second->DbRWLockWriter();
+      db_item.second->SetCompactRangeOptions(true);
+      db_item.second->DbRWUnLock();
+  }
+}
+
 void DoBgslotscleanup(void* arg) {
   auto p = static_cast<PikaServer*>(arg);
   PikaServer::BGSlotsCleanup cleanup = p->bgslots_cleanup();
@@ -1799,7 +1819,7 @@ void PikaServer::ResetCacheConfig(std::shared_ptr<DB> db) {
   cache_cfg.maxmemory_policy = g_pika_conf->cache_maxmemory_policy();
   cache_cfg.maxmemory_samples = g_pika_conf->cache_maxmemory_samples();
   cache_cfg.lfu_decay_time = g_pika_conf->cache_lfu_decay_time();
-  cache_cfg.zset_cache_start_pos = g_pika_conf->zset_cache_start_pos();
+  cache_cfg.zset_cache_start_direction = g_pika_conf->zset_cache_start_direction();
   cache_cfg.zset_cache_field_num_per_key = g_pika_conf->zset_cache_field_num_per_key();
   db->cache()->ResetConfig(&cache_cfg);
 }
@@ -1808,7 +1828,7 @@ void PikaServer::ClearHitRatio(std::shared_ptr<DB> db) {
   db->cache()->ClearHitRatio();
 }
 
-void PikaServer::OnCacheStartPosChanged(int zset_cache_start_pos, std::shared_ptr<DB> db) {
+void PikaServer::OnCacheStartPosChanged(int zset_cache_start_direction, std::shared_ptr<DB> db) {
   ResetCacheConfig(db);
   ClearCacheDbAsync(db);
 }
